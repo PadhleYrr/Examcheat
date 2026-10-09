@@ -29,7 +29,7 @@ import java.util.concurrent.Executors;
 public class AccessibilityReaderService extends AccessibilityService {
 
     // ── CONFIG ────────────────────────────────────────────────────────────────
-    private static final String GROQ_API_KEY = "YOUR_GROQ_API_KEY_HERE";
+    private static final String GROQ_API_KEY = "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";
     private static final String GROQ_MODEL   = "llama3-70b-8192";
     private static final int    DEBOUNCE_MS  = 1500; // avoid spamming API mid-scroll
     // ─────────────────────────────────────────────────────────────────────────
