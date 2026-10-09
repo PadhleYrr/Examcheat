@@ -1,6 +1,4 @@
 // language: Java, file: AccessibilityReaderService.java, target: Android API 26+
-// reads view tree text from any foreground app, bypasses FLAG_SECURE,
-// sends to Groq API, overlays the answer bottom-left always-on-top
 
 package com.bench.examassist;
 
@@ -14,7 +12,9 @@ import android.view.Gravity;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.ScrollView;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -28,37 +28,36 @@ import java.util.concurrent.Executors;
 
 public class AccessibilityReaderService extends AccessibilityService {
 
-    // ── CONFIG ────────────────────────────────────────────────────────────────
-    private static final String GROQ_API_KEY = "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";
+    private static final String GROQ_API_KEY = "YOUR_GROQ_API_KEY_HERE";
     private static final String GROQ_MODEL   = "llama3-70b-8192";
-    private static final int    DEBOUNCE_MS  = 1500; // avoid spamming API mid-scroll
-    // ─────────────────────────────────────────────────────────────────────────
+    private static final int    DEBOUNCE_MS  = 800;
 
-    private WindowManager      wm;
-    private TextView           overlay;
-    private boolean            overlayAdded = false;
+    private WindowManager wm;
+    private TextView      tvStatus;   // top line — what it's doing
+    private TextView      tvCapture;  // middle — what text was captured
+    private TextView      tvAnswer;   // bottom — groq answer
+    private boolean       overlayAdded = false;
 
     private final ExecutorService executor    = Executors.newSingleThreadExecutor();
     private final Handler         mainHandler = new Handler(Looper.getMainLooper());
     private Runnable              pendingTask;
-
-    // last screen text — skip API call if screen didn't change
-    private String lastText = "";
+    private String                lastText = "";
 
     @Override
     public void onServiceConnected() {
         AccessibilityServiceInfo info = new AccessibilityServiceInfo();
-        info.eventTypes =
-                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED |
-                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED;
-        info.feedbackType        = AccessibilityServiceInfo.FEEDBACK_GENERIC;
+        info.eventTypes      = AccessibilityServiceInfo.DEFAULT;
+        info.eventTypes      = android.view.accessibility.AccessibilityEvent.TYPES_ALL_MASK;
+        info.feedbackType    = AccessibilityServiceInfo.FEEDBACK_ALL_MASK;
         info.notificationTimeout = DEBOUNCE_MS;
         info.flags =
-                AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS |
-                AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
+            AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS |
+            AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS |
+            AccessibilityServiceInfo.FLAG_REQUEST_ENHANCED_WEB_ACCESSIBILITY;
         setServiceInfo(info);
 
         setupOverlay();
+        setStatus("● service connected");
     }
 
     // ── OVERLAY ───────────────────────────────────────────────────────────────
@@ -66,82 +65,106 @@ public class AccessibilityReaderService extends AccessibilityService {
     private void setupOverlay() {
         wm = (WindowManager) getSystemService(WINDOW_SERVICE);
 
-        overlay = new TextView(this);
-        overlay.setTextColor(Color.GREEN);
-        overlay.setBackgroundColor(Color.argb(200, 0, 0, 0));
-        overlay.setTextSize(12f);
-        overlay.setPadding(14, 8, 14, 8);
-        overlay.setText("● ready");
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setBackgroundColor(Color.argb(220, 10, 10, 10));
+        container.setPadding(16, 10, 16, 10);
+
+        tvStatus = makeLabel("● ready", Color.YELLOW, 11f);
+        tvCapture = makeLabel("captured: —", Color.parseColor("#888888"), 10f);
+        tvAnswer  = makeLabel("answer: —", Color.parseColor("#00FF88"), 12f);
+
+        container.addView(tvStatus);
+        container.addView(tvCapture);
+        container.addView(tvAnswer);
 
         WindowManager.LayoutParams p = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                // TYPE_ACCESSIBILITY_OVERLAY renders over FLAG_SECURE windows
-                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-                PixelFormat.TRANSLUCENT
+            (int)(getResources().getDisplayMetrics().widthPixels * 0.92f),
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT
         );
-        p.gravity = Gravity.BOTTOM | Gravity.START;
-        p.x = 16;
-        p.y = 100;
+        p.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+        p.y = 40;
 
-        wm.addView(overlay, p);
+        wm.addView(container, p);
         overlayAdded = true;
     }
 
-    private void setOverlayText(String text) {
-        if (overlayAdded) overlay.setText(text);
+    private TextView makeLabel(String text, int color, float size) {
+        TextView tv = new TextView(this);
+        tv.setText(text);
+        tv.setTextColor(color);
+        tv.setTextSize(size);
+        tv.setMaxLines(4);
+        tv.setPadding(0, 3, 0, 3);
+        tv.setTypeface(android.graphics.Typeface.MONOSPACE);
+        return tv;
     }
 
-    // ── ACCESSIBILITY EVENT ───────────────────────────────────────────────────
+    private void setStatus(String s)  { mainHandler.post(() -> { if(overlayAdded) tvStatus.setText(s); }); }
+    private void setCapture(String s) { mainHandler.post(() -> { if(overlayAdded) tvCapture.setText("captured: " + (s.length() > 80 ? s.substring(0,80)+"…" : s)); }); }
+    private void setAnswer(String s)  { mainHandler.post(() -> { if(overlayAdded) tvAnswer.setText("answer: " + s); }); }
+
+    // ── EVENT ─────────────────────────────────────────────────────────────────
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        // debounce: cancel previous pending call, reschedule
         if (pendingTask != null) mainHandler.removeCallbacks(pendingTask);
 
         pendingTask = () -> {
+            setStatus("● scanning screen...");
+
             AccessibilityNodeInfo root = getRootInActiveWindow();
-            if (root == null) return;
+            if (root == null) {
+                setStatus("● no window (null root)");
+                return;
+            }
 
             String text = extractText(root).trim();
-            if (text.length() < 20)  return; // transitional / empty screen
-            if (text.equals(lastText)) return; // screen hasn't changed
+
+            if (text.length() < 15) {
+                setStatus("● text too short (" + text.length() + " chars), skipping");
+                return;
+            }
+            if (text.equals(lastText)) {
+                setStatus("● screen unchanged, idle");
+                return;
+            }
+
             lastText = text;
+            setCapture(text.replaceAll("\\s+", " "));
+            setStatus("⏳ sending to groq (" + text.length() + " chars)...");
 
-            setOverlayText("⏳ thinking...");
             final String captured = text;
-
             executor.submit(() -> {
                 String answer = askGroq(captured);
-                mainHandler.post(() -> setOverlayText(answer));
+                setStatus("● done");
+                setAnswer(answer);
             });
         };
 
         mainHandler.postDelayed(pendingTask, DEBOUNCE_MS);
     }
 
-    // ── VIEW TREE TEXT EXTRACTION ─────────────────────────────────────────────
+    // ── TEXT EXTRACT ──────────────────────────────────────────────────────────
 
     private String extractText(AccessibilityNodeInfo node) {
         if (node == null) return "";
         StringBuilder sb = new StringBuilder();
-
         CharSequence t = node.getText();
         CharSequence d = node.getContentDescription();
         if (t != null && t.length() > 0) sb.append(t).append('\n');
-        if (d != null && d.length() > 0) sb.append(d).append('\n');
-
-        for (int i = 0; i < node.getChildCount(); i++) {
-            sb.append(extractText(node.getChild(i)));
-        }
+        if (d != null && d.length() > 0 && (t == null || !d.equals(t))) sb.append(d).append('\n');
+        for (int i = 0; i < node.getChildCount(); i++) sb.append(extractText(node.getChild(i)));
         return sb.toString();
     }
 
-    // ── GROQ API ──────────────────────────────────────────────────────────────
+    // ── GROQ ──────────────────────────────────────────────────────────────────
 
-    private String askGroq(String screenContent) {
+    private String askGroq(String screen) {
         try {
             URL url = new URL("https://api.groq.com/openai/v1/chat/completions");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -152,62 +175,48 @@ public class AccessibilityReaderService extends AccessibilityService {
             conn.setReadTimeout(8000);
             conn.setDoOutput(true);
 
-            JSONObject systemMsg = new JSONObject()
-                    .put("role", "system")
-                    .put("content",
-                            "You are a silent exam assistant. " +
-                            "Given raw screen text from an exam app, identify the current question. " +
-                            "For MCQ: reply with the correct option letter and a max 10-word reason. " +
-                            "For descriptive: reply with a 1-2 sentence answer. " +
-                            "If multiple questions are visible, number each answer. " +
-                            "Be terse. No preamble.");
-
-            JSONObject userMsg = new JSONObject()
-                    .put("role", "user")
-                    .put("content", "SCREEN:\n" + screenContent);
+            JSONObject sys = new JSONObject()
+                .put("role", "system")
+                .put("content", "Exam assistant. Find the question on screen. MCQ: reply letter + 8 word reason. Descriptive: 1-2 sentences. Be terse.");
+            JSONObject usr = new JSONObject()
+                .put("role", "user")
+                .put("content", "SCREEN:\n" + screen);
 
             JSONObject body = new JSONObject()
-                    .put("model", GROQ_MODEL)
-                    .put("max_tokens", 250)
-                    .put("temperature", 0.1)
-                    .put("messages", new JSONArray().put(systemMsg).put(userMsg));
+                .put("model", GROQ_MODEL)
+                .put("max_tokens", 200)
+                .put("temperature", 0.1)
+                .put("messages", new JSONArray().put(sys).put(usr));
 
             OutputStream os = conn.getOutputStream();
             os.write(body.toString().getBytes("UTF-8"));
             os.close();
 
             int code = conn.getResponseCode();
-            java.io.InputStream stream = (code == 200)
-                    ? conn.getInputStream()
-                    : conn.getErrorStream();
-
+            java.io.InputStream stream = code == 200 ? conn.getInputStream() : conn.getErrorStream();
             Scanner sc = new Scanner(stream, "UTF-8");
             StringBuilder resp = new StringBuilder();
             while (sc.hasNextLine()) resp.append(sc.nextLine());
             sc.close();
 
-            if (code != 200) return "API err " + code + ": " + resp.toString().substring(0, Math.min(80, resp.length()));
+            if (code != 200) return "API " + code + ": " + resp.toString().substring(0, Math.min(60, resp.length()));
 
-            JSONObject json = new JSONObject(resp.toString());
-            return json
-                    .getJSONArray("choices")
-                    .getJSONObject(0)
-                    .getJSONObject("message")
-                    .getString("content")
-                    .trim();
+            return new JSONObject(resp.toString())
+                .getJSONArray("choices")
+                .getJSONObject(0)
+                .getJSONObject("message")
+                .getString("content")
+                .trim();
 
         } catch (Exception e) {
             return "err: " + e.getMessage();
         }
     }
 
-    // ── CLEANUP ───────────────────────────────────────────────────────────────
-
     @Override
     public void onInterrupt() {
-        if (overlayAdded && wm != null && overlay != null) {
-            wm.removeView(overlay);
-            overlayAdded = false;
+        if (overlayAdded && wm != null) {
+            // cleanup handled by system
         }
     }
 }
