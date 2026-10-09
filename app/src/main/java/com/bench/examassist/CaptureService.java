@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class CaptureService extends Service {
 
-    private static final String GROQ_API_KEY  = "YOUR_GROQ_API_KEY_HERE";
+    private static final String GROQ_API_KEY  = "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";
     // llama-4 scout supports vision (image input)
     private static final String GROQ_MODEL    = "meta-llama/llama-4-scout-17b-16e-instruct";
     private static final int    CAPTURE_MS    = 2000; // capture every 2 seconds
