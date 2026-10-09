@@ -4,64 +4,72 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="24dp"
-    android:gravity="center_horizontal"
-    android:background="#111111">
+    android:background="#000000"
+    android:padding="12dp">
 
+    <!-- answer — biggest, top, always visible -->
     <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="ExamAssist"
-        android:textSize="26sp"
+        android:id="@+id/tvAnswer"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="3"
+        android:text="answer appears here"
         android:textColor="#00FF88"
+        android:textSize="28sp"
         android:textStyle="bold"
-        android:layout_marginBottom="4dp" />
+        android:gravity="center"
+        android:padding="12dp"
+        android:background="#0A1A0A" />
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Screen capture + Groq Vision"
-        android:textSize="12sp"
-        android:textColor="#666666"
-        android:layout_marginBottom="32dp" />
+    <!-- small preview of phone A screen -->
+    <ImageView
+        android:id="@+id/ivPreview"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="2"
+        android:scaleType="fitCenter"
+        android:background="#111111"
+        android:layout_marginTop="8dp" />
 
+    <!-- status line -->
     <TextView
         android:id="@+id/tvStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="#CCCCCC"
-        android:textSize="13sp"
+        android:text="● tap Start"
+        android:textColor="#FFFF00"
+        android:textSize="11sp"
         android:fontFamily="monospace"
-        android:background="#1A1A1A"
-        android:padding="16dp"
-        android:layout_marginBottom="24dp"
-        android:text="● tap Start to begin" />
+        android:padding="8dp"
+        android:layout_marginTop="6dp" />
 
-    <Button
-        android:id="@+id/btnStart"
-        android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:text="▶  Start Capture"
-        android:backgroundTint="#00FF88"
-        android:textColor="#000000"
-        android:textStyle="bold"
-        android:layout_marginBottom="12dp" />
-
-    <Button
-        android:id="@+id/btnStop"
-        android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:text="■  Stop"
-        android:backgroundTint="#333333"
-        android:textColor="#FFFFFF"
-        android:layout_marginBottom="24dp" />
-
-    <TextView
+    <!-- buttons -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="#444444"
-        android:textSize="11sp"
-        android:lineSpacingExtra="4dp"
-        android:text="1. Tap Start — allow screen capture when prompted\n2. Press home, open your exam app\n3. Answer appears in overlay at bottom\n\nEdit GROQ_API_KEY in CaptureService.java before building." />
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp">
+
+        <Button
+            android:id="@+id/btnStart"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:text="▶ Start"
+            android:backgroundTint="#00FF88"
+            android:textColor="#000000"
+            android:textStyle="bold"
+            android:layout_marginEnd="6dp" />
+
+        <Button
+            android:id="@+id/btnStop"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:text="■ Stop"
+            android:backgroundTint="#333333"
+            android:textColor="#FFFFFF" />
+
+    </LinearLayout>
 
 </LinearLayout>
