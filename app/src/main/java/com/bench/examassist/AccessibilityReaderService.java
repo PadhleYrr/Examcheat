@@ -12,9 +12,9 @@ import android.view.Gravity;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.ScrollView;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -22,6 +22,7 @@ import org.json.JSONObject;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.List;
 import java.util.Scanner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -33,9 +34,9 @@ public class AccessibilityReaderService extends AccessibilityService {
     private static final int    DEBOUNCE_MS  = 800;
 
     private WindowManager wm;
-    private TextView      tvStatus;   // top line — what it's doing
-    private TextView      tvCapture;  // middle — what text was captured
-    private TextView      tvAnswer;   // bottom — groq answer
+    private TextView      tvStatus;
+    private TextView      tvCapture;
+    private TextView      tvAnswer;
     private boolean       overlayAdded = false;
 
     private final ExecutorService executor    = Executors.newSingleThreadExecutor();
@@ -46,8 +47,7 @@ public class AccessibilityReaderService extends AccessibilityService {
     @Override
     public void onServiceConnected() {
         AccessibilityServiceInfo info = new AccessibilityServiceInfo();
-        info.eventTypes      = AccessibilityServiceInfo.DEFAULT;
-        info.eventTypes      = android.view.accessibility.AccessibilityEvent.TYPES_ALL_MASK;
+        info.eventTypes      = AccessibilityEvent.TYPES_ALL_MASK;
         info.feedbackType    = AccessibilityServiceInfo.FEEDBACK_ALL_MASK;
         info.notificationTimeout = DEBOUNCE_MS;
         info.flags =
@@ -70,7 +70,7 @@ public class AccessibilityReaderService extends AccessibilityService {
         container.setBackgroundColor(Color.argb(220, 10, 10, 10));
         container.setPadding(16, 10, 16, 10);
 
-        tvStatus = makeLabel("● ready", Color.YELLOW, 11f);
+        tvStatus  = makeLabel("● service connected", Color.YELLOW, 11f);
         tvCapture = makeLabel("captured: —", Color.parseColor("#888888"), 10f);
         tvAnswer  = makeLabel("answer: —", Color.parseColor("#00FF88"), 12f);
 
@@ -104,9 +104,9 @@ public class AccessibilityReaderService extends AccessibilityService {
         return tv;
     }
 
-    private void setStatus(String s)  { mainHandler.post(() -> { if(overlayAdded) tvStatus.setText(s); }); }
-    private void setCapture(String s) { mainHandler.post(() -> { if(overlayAdded) tvCapture.setText("captured: " + (s.length() > 80 ? s.substring(0,80)+"…" : s)); }); }
-    private void setAnswer(String s)  { mainHandler.post(() -> { if(overlayAdded) tvAnswer.setText("answer: " + s); }); }
+    private void setStatus(String s)  { mainHandler.post(() -> { if (overlayAdded) tvStatus.setText(s); }); }
+    private void setCapture(String s) { mainHandler.post(() -> { if (overlayAdded) tvCapture.setText("captured: " + (s.length() > 80 ? s.substring(0, 80) + "…" : s)); }); }
+    private void setAnswer(String s)  { mainHandler.post(() -> { if (overlayAdded) tvAnswer.setText("answer: " + s); }); }
 
     // ── EVENT ─────────────────────────────────────────────────────────────────
 
@@ -117,16 +117,54 @@ public class AccessibilityReaderService extends AccessibilityService {
         pendingTask = () -> {
             setStatus("● scanning screen...");
 
-            AccessibilityNodeInfo root = getRootInActiveWindow();
+            AccessibilityNodeInfo root = null;
+
+            // Realme fix: getRootInActiveWindow() returns null on Realme UI
+            // use getWindows() with FLAG_RETRIEVE_INTERACTIVE_WINDOWS instead
+            try {
+                List<AccessibilityWindowInfo> windows = getWindows();
+                setStatus("● found " + windows.size() + " windows, scanning...");
+
+                // first try active window
+                for (AccessibilityWindowInfo window : windows) {
+                    if (window.isActive()) {
+                        root = window.getRoot();
+                        if (root != null) break;
+                    }
+                }
+
+                // fallback: try focused window
+                if (root == null) {
+                    for (AccessibilityWindowInfo window : windows) {
+                        if (window.isFocused()) {
+                            root = window.getRoot();
+                            if (root != null) break;
+                        }
+                    }
+                }
+
+                // last resort: first non-null window
+                if (root == null) {
+                    for (AccessibilityWindowInfo window : windows) {
+                        root = window.getRoot();
+                        if (root != null) break;
+                    }
+                }
+
+            } catch (Exception e) {
+                setStatus("● getWindows() err: " + e.getMessage());
+                return;
+            }
+
             if (root == null) {
-                setStatus("● no window (null root)");
+                setStatus("● all windows returned null root");
                 return;
             }
 
             String text = extractText(root).trim();
 
             if (text.length() < 15) {
-                setStatus("● text too short (" + text.length() + " chars), skipping");
+                setStatus("● text too short (" + text.length() + " chars)");
                 return;
             }
             if (text.equals(lastText)) {
@@ -199,7 +237,8 @@ public class AccessibilityReaderService extends AccessibilityService {
             while (sc.hasNextLine()) resp.append(sc.nextLine());
             sc.close();
 
-            if (code != 200) return "API " + code + ": " + resp.toString().substring(0, Math.min(60, resp.length()));
+            if (code != 200)
+                return "API " + code + ": " + resp.toString().substring(0, Math.min(60, resp.length()));
 
             return new JSONObject(resp.toString())
                 .getJSONArray("choices")
@@ -214,9 +253,5 @@ public class AccessibilityReaderService extends AccessibilityService {
     }
 
     @Override
-    public void onInterrupt() {
-        if (overlayAdded && wm != null) {
-            // cleanup handled by system
-        }
-    }
+    public void onInterrupt() {}
 }
