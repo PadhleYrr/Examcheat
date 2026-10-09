@@ -15,53 +15,53 @@
         android:textSize="26sp"
         android:textColor="#00FF88"
         android:textStyle="bold"
-        android:layout_marginBottom="8dp" />
+        android:layout_marginBottom="4dp" />
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Groq-powered overlay"
-        android:textSize="13sp"
-        android:textColor="#888888"
+        android:text="Screen capture + Groq Vision"
+        android:textSize="12sp"
+        android:textColor="#666666"
         android:layout_marginBottom="32dp" />
 
     <TextView
-        android:id="@+id/statusText"
+        android:id="@+id/tvStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:textColor="#CCCCCC"
-        android:textSize="14sp"
-        android:lineSpacingExtra="4dp"
+        android:textSize="13sp"
         android:fontFamily="monospace"
         android:background="#1A1A1A"
         android:padding="16dp"
-        android:layout_marginBottom="32dp"
-        android:text="Checking permissions..." />
+        android:layout_marginBottom="24dp"
+        android:text="● tap Start to begin" />
 
     <Button
-        android:id="@+id/btnAccessibility"
+        android:id="@+id/btnStart"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:text="1. Enable Accessibility Service"
+        android:layout_height="52dp"
+        android:text="▶  Start Capture"
         android:backgroundTint="#00FF88"
         android:textColor="#000000"
+        android:textStyle="bold"
         android:layout_marginBottom="12dp" />
 
     <Button
-        android:id="@+id/btnOverlay"
+        android:id="@+id/btnStop"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:text="2. Allow Display Over Other Apps"
-        android:backgroundTint="#00AA55"
-        android:textColor="#000000"
+        android:layout_height="52dp"
+        android:text="■  Stop"
+        android:backgroundTint="#333333"
+        android:textColor="#FFFFFF"
         android:layout_marginBottom="24dp" />
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="#555555"
+        android:textColor="#444444"
         android:textSize="11sp"
-        android:text="After both are enabled, open your exam app.\nThe answer overlay appears bottom-left.\nEdit GROQ_API_KEY in AccessibilityReaderService.java before building."
-        android:lineSpacingExtra="3dp" />
+        android:lineSpacingExtra="4dp"
+        android:text="1. Tap Start — allow screen capture when prompted\n2. Press home, open your exam app\n3. Answer appears in overlay at bottom\n\nEdit GROQ_API_KEY in CaptureService.java before building." />
 
 </LinearLayout>
