@@ -1,77 +1,54 @@
 // language: Java, file: MainActivity.java, target: Android API 26+
-// setup screen — checks permissions, opens relevant settings, shows status
 
 package com.bench.examassist;
 
-import android.accessibilityservice.AccessibilityServiceInfo;
+import android.app.Activity;
 import android.content.Intent;
-import android.net.Uri;
+import android.media.projection.MediaProjectionManager;
 import android.os.Bundle;
-import android.provider.Settings;
-import android.view.accessibility.AccessibilityManager;
 import android.widget.Button;
 import android.widget.TextView;
-import android.app.Activity;
-
-import java.util.List;
 
 public class MainActivity extends Activity {
 
-    private TextView statusText;
+    private static final int REQUEST_CAPTURE = 100;
+    private MediaProjectionManager mpm;
+    private TextView tvStatus;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        statusText = findViewById(R.id.statusText);
+        tvStatus = findViewById(R.id.tvStatus);
+        mpm = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
 
-        Button btnAccessibility = findViewById(R.id.btnAccessibility);
-        Button btnOverlay       = findViewById(R.id.btnOverlay);
+        Button btnStart = findViewById(R.id.btnStart);
+        Button btnStop  = findViewById(R.id.btnStop);
 
-        btnAccessibility.setOnClickListener(v ->
-                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
+        btnStart.setOnClickListener(v -> {
+            // shows system dialog "ExamAssist will capture your screen"
+            startActivityForResult(mpm.createScreenCaptureIntent(), REQUEST_CAPTURE);
+        });
 
-        btnOverlay.setOnClickListener(v -> {
-            Intent i = new Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:" + getPackageName()));
-            startActivity(i);
+        btnStop.setOnClickListener(v -> {
+            stopService(new Intent(this, CaptureService.class));
+            tvStatus.setText("● stopped");
         });
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-        updateStatus();
-    }
-
-    private void updateStatus() {
-        boolean accessOk = isAccessibilityEnabled();
-        boolean overlayOk = Settings.canDrawOverlays(this);
-
-        StringBuilder sb = new StringBuilder();
-        sb.append("Accessibility service: ").append(accessOk ? "✓ ON" : "✗ OFF").append('\n');
-        sb.append("Overlay permission:    ").append(overlayOk ? "✓ ON" : "✗ OFF").append('\n');
-
-        if (accessOk && overlayOk) {
-            sb.append("\n● Active — open your exam app.");
+    protected void onActivityResult(int req, int result, Intent data) {
+        if (req == REQUEST_CAPTURE && result == RESULT_OK) {
+            Intent svc = new Intent(this, CaptureService.class);
+            svc.putExtra("code", result);
+            svc.putExtra("data", data);
+            startForegroundService(svc);
+            tvStatus.setText("● running — open your exam app");
+            // go to home so exam app can be opened
+            moveTaskToBack(true);
         } else {
-            sb.append("\nEnable both above, then open your exam app.");
+            tvStatus.setText("● permission denied — try again");
         }
-
-        statusText.setText(sb.toString());
-    }
-
-    private boolean isAccessibilityEnabled() {
-        AccessibilityManager am =
-                (AccessibilityManager) getSystemService(ACCESSIBILITY_SERVICE);
-        List<AccessibilityServiceInfo> enabled =
-                am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK);
-        String pkg = getPackageName();
-        for (AccessibilityServiceInfo info : enabled) {
-            if (info.getId().startsWith(pkg)) return true;
-        }
-        return false;
     }
 }
