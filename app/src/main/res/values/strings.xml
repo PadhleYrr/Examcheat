@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ExamAssist</string>
+    <string name="accessibility_label">ExamAssist Reader</string>
+    <string name="accessibility_description">Reads exam screen content and shows AI answers in an overlay.</string>
+</resources>
